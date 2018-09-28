@@ -46,7 +46,7 @@ class NeedlemanWunshAlgo:
                 # pointers. Or we could just do nearest neighboors, choise mininum values &
                 #  rebuild the paths from that.
 
-        solutions = self.reconstructPaths()
+        solutions = self.reconstructSinglePath()
 
 
         return solutions
@@ -78,7 +78,7 @@ class NeedlemanWunshAlgo:
                 # pointers. Or we could just do nearest neighboors, choise mininum values &
                 #  rebuild the paths from that.
 
-        solutions = self.reconstructPaths()
+        solutions = self.reconstructSinglePath()
 
 
         return solutions
@@ -148,6 +148,32 @@ class NeedlemanWunshAlgo:
         return completeAlignmentSequences
 
 
+    def reconstructSinglePath(self):
+        """Reconstruct one of possible path. Chooses the first min() if comes accross (checks the diagonal first, so favors substitutions somewhat which is probably a good thing"""
+
+        #dummy copies we're going to pop() from
+        dum_s1 = deepcopy(self.s1)
+        dum_s2 = deepcopy(self.s2)
+        #The sequence strings we're going to build
+        align_s1 = []
+        align_s2 = []
+        #start @ bottom right
+        currentPos = [self.results.shape[0]-1,self.results.shape[1]-1]
+
+        while dum_s1 and dum_s2:
+
+            nextNeighbourPosition = self.getNeighboursMinSingle(currentPos, isMax=True)
+            self.nextLetterInplace((dum_s1,dum_s2),(align_s1,align_s2),currentPos,nextNeighbourPosition)
+
+        align_s1 = align_s1[::-1]
+        align_s2 = align_s2[::-1]
+        print(self.results)
+
+        return (align_s1,align_s2)
+
+
+
+
     def nextLetter(self,seq, nextNeighbourPosition):
         """Returns the next letter (atcg or _) for that sequence from s1 perspective (side sequence)"""
         # gets the letter corresponding to that coordinate, based on corresponding places in S1 Mind the indexes...
@@ -166,6 +192,35 @@ class NeedlemanWunshAlgo:
             return self.s1[max(nextNeighbourPosition[0]-1,0)]
         else:
             print("Something wrong nextLetter()")
+
+    def nextLetterInplace(self, dum_seq_tuple, new_sequence_tuple, currentPos, nextNeighbourPosition):
+        """An improved nextLetter. Does everything on the objects provided: it pop() from dum_seq if needed, it appends to each sequence, updates the currentPos"""
+
+        if currentPos[0] != nextNeighbourPosition[0] and currentPos[1] != nextNeighbourPosition[1]:
+            # a substitution or same letter - pop() & append to each sequence
+            new_sequence_tuple[0].append(dum_seq_tuple[0].pop())
+            new_sequence_tuple[1].append(dum_seq_tuple[1].pop())
+            currentPos[0] = nextNeighbourPosition[0]
+            currentPos[1] = nextNeighbourPosition[1]
+
+
+        elif currentPos[0] == nextNeighbourPosition[0]:
+            # insert _ for s1, and pop() for s2
+            new_sequence_tuple[0].append("_")
+            new_sequence_tuple[1].append(dum_seq_tuple[1].pop())
+            currentPos[1] = nextNeighbourPosition[1]
+
+
+        elif currentPos[1] == nextNeighbourPosition[1]:
+            # the inverse situation
+            new_sequence_tuple[1].append("_")
+            new_sequence_tuple[0].append(dum_seq_tuple[0].pop())
+            currentPos[0] = nextNeighbourPosition[0]
+
+        else:
+            print("Something wrong nextLetter()")
+
+
 
 
     def getNeighboursMin(self, pos):
@@ -190,6 +245,21 @@ class NeedlemanWunshAlgo:
             if s[0]==minScore:
                 minNeighbours.append(s[1])
         return minNeighbours
+
+    def getNeighboursMinSingle(self, pos, isMax=False):
+        '''
+        Returns the first min it comes accroos, ignores ties. Favors substitutions
+        '''
+
+
+        alignOrSubstitution = [pos[0]-1,pos[1]-1]
+        delete = [pos[0],pos[1]-1]
+        insert = [pos[0]-1,pos[1]]
+        minNeighbours = []
+        scores = [(self.results[insert[0]][insert[1]],insert),(self.results[delete[0]][delete[1]], delete),
+                  (self.results[alignOrSubstitution[0]][alignOrSubstitution[1]],alignOrSubstitution)]
+        scores.sort(key=lambda tup: tup[0], reverse=not isMax)
+        return scores.pop()[1]
 
 
 class PartialSequence:
@@ -273,28 +343,23 @@ class CostFunctionSimilarity:
 
 
 
-s1 = ["a","a","c","t","g","g","a","t","g","c","t","t"]
+s1 = ["a","g","a","c","t","g","a","g","t","a","a","a"]
 s2 = ["a","c","t","g","g","a","c","t","g","a","g","t"]
 #s2 = ["t","c","g","a"]
 #s1 = ["c","c","g","a"]
 
 
-needleSimple = NeedlemanWunshAlgo(s1,s2,CostFunctionSimple(1))
+#needleSimple = NeedlemanWunshAlgo(s1,s2,CostFunctionSimple(1))
+needleSimilarity = NeedlemanWunshAlgo(s1,s2,CostFunctionSimilarity(2,-1,-2))
 #needleWeighted = NeedlemanWunshAlgo(s1,s2,CostFunctionWeighted(1,2))
 
 print("Simple cost function:")
 
-solutions = needleSimple.execNeedlemanWunsh()
-#solutions = needleSimple.execNeedlemanWunshSimilarity()
+#solutions = needleSimple.execNeedlemanWunsh()
+solutions = needleSimilarity.execNeedlemanWunshSimilarity()
 
 
 print("S1: ",s1)
 print("S2: ",s2)
-for s in solutions:
-    print("FI: ",list(s.sequenceString))
-
-print("Weighted cost function:")
-#solutions = needleWeighted.execNeedlemanWunsh()
-#for s in solutions:
-    #print(s.sequenceString)
-#    pass
+print("F1: ", solutions[0])
+print("F2: ", solutions[1])
